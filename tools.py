@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import html
 import os
+import re
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -169,6 +171,29 @@ def get_iss_passes(
     }
 
 
+_IMAGE_EXT = (".jpg", ".jpeg", ".png", ".gif", ".webp")
+
+
+def _strip_html(text: str | None) -> str | None:
+    if not text:
+        return text
+    return html.unescape(re.sub(r"<[^>]+>", "", text)).strip()
+
+
+def _apod_image_url(data: dict) -> str | None:
+    """The science.nasa.gov fallback puts a web page in `url`; only `hdurl` is an image there."""
+    url = data.get("url") or data.get("image")
+    if data.get("media_type", "image") != "image":
+        return url
+    if url and url.split("?")[0].lower().endswith(_IMAGE_EXT):
+        return url
+    hd = data.get("hdurl")
+    if hd and "/dynamicimage/" in hd:
+        # full-size originals can be 6000px+; ask the image service for a card-sized one
+        return hd.split("?")[0] + "?w=1200&fit=clip"
+    return hd or url
+
+
 def get_apod(date: str | None = None) -> dict:
     """NASA Astronomy Picture of the Day."""
     api_key = os.getenv("NASA_API_KEY", "DEMO_KEY")
@@ -193,11 +218,11 @@ def get_apod(date: str | None = None) -> dict:
                     "source": "NASA APOD",
                     "title": data.get("title") or data.get("name"),
                     "date": data.get("date"),
-                    "explanation": (data.get("explanation") or data.get("description") or "")[:1200],
-                    "url": data.get("url") or data.get("hdurl") or data.get("image"),
+                    "explanation": (_strip_html(data.get("explanation") or data.get("description")) or "")[:1200],
+                    "url": _apod_image_url(data),
                     "hdurl": data.get("hdurl"),
                     "media_type": data.get("media_type", "image"),
-                    "copyright": data.get("copyright"),
+                    "copyright": _strip_html(data.get("copyright")),
                 }
             except Exception as exc:
                 last_error = exc

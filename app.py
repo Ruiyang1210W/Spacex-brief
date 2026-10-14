@@ -22,28 +22,67 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-    .stApp { background: radial-gradient(1200px 500px at 10% -10%, #1b2744 0%, #070b14 45%, #05070d 100%); }
-    h1, h2, h3, p, label { color: #e8eefc !important; }
-    .brief-card {
-        background: rgba(255,255,255,0.04);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 16px;
-        padding: 1rem 1.1rem;
-        min-height: 180px;
+    @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600&display=swap');
+
+    html, body, .stApp, .stApp p, .stApp label, .stApp button, .stApp textarea {
+        font-family: 'Barlow', 'D-DIN', 'Helvetica Neue', Arial, sans-serif;
     }
-    .kicker { color: #8fb4ff; font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; }
-    .muted { color: #9aa7c2 !important; font-size: 0.9rem; }
+    .stApp, [data-testid="stHeader"], [data-testid="stBottomBlockContainer"] { background: #000; }
+    .block-container { padding-top: 3rem; max-width: 1280px; }
+
+    h1, h2, h3 { color: #fff !important; text-transform: uppercase; font-weight: 600 !important; }
+    h1 { letter-spacing: 0.18em; font-size: 2.4rem !important; }
+    h3 { letter-spacing: 0.06em; font-size: 1.25rem !important; }
+    [data-testid="stCaptionContainer"] { color: #8a8a8a !important; letter-spacing: 0.04em; }
+    hr { border-color: rgba(255,255,255,0.18) !important; }
+
+    [class*="st-key-card_"] {
+        background: #000;
+        border: 1px solid rgba(255,255,255,0.22);
+        border-radius: 0;
+        padding: 1.4rem 1.5rem;
+        min-height: 260px;
+    }
+    .kicker { color: #fff; font-size: 0.72rem; font-weight: 500; letter-spacing: 0.22em; text-transform: uppercase; opacity: 0.7; }
+    .countdown { color: #fff; font-size: 2rem; font-weight: 300; letter-spacing: 0.08em; margin: 0.2rem 0 0.6rem; }
+    .muted { color: #9a9a9a !important; font-size: 0.9rem; line-height: 1.6; }
+
+    .stButton > button {
+        background: #000 !important;
+        color: #fff !important;
+        border: 1px solid #fff !important;
+        border-radius: 0 !important;
+        padding: 0.75rem 1rem;
+        transition: background 0.25s ease, color 0.25s ease;
+    }
+    .stButton > button p {
+        color: inherit !important;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+    }
+    .stButton > button:hover, .stButton > button:focus-visible {
+        background: #fff !important;
+        color: #000 !important;
+    }
+    .stButton > button:active { background: #d0d0d0 !important; color: #000 !important; }
+
+    [data-testid="stChatInput"] > div { background: #000; border: 1px solid rgba(255,255,255,0.45); border-radius: 0; }
+    [data-testid="stChatMessage"] { background: transparent; border-bottom: 1px solid rgba(255,255,255,0.12); border-radius: 0; }
+    [data-testid="stImage"] img { border-radius: 0; }
 </style>
 """,
     unsafe_allow_html=True,
 )
 
-QUICK = [
-    "下一发 SpaceX 是什么？什么时候、从哪打？",
-    "今晚在 Hawthorne 能看见国际空间站吗？",
-    "这发载荷是干什么的？用一句话讲给外行听。",
-    "今日 NASA 天文图拍的是什么？",
-]
+# Button label -> prompt sent to the agent
+QUICK = {
+    "Next launch": "What is the next SpaceX launch? When and where does it lift off?",
+    "ISS tonight": "Can I see the ISS from Hawthorne tonight?",
+    "Payload explained": "What does the payload on the next launch do? Explain it in one sentence for a non-expert.",
+    "Today's APOD": "What does today's NASA Astronomy Picture of the Day show?",
+}
 
 
 @st.cache_data(ttl=180)
@@ -87,13 +126,15 @@ apod_data = load_apod()
 
 c1, c2, c3 = st.columns(3)
 
-with c1:
-    st.markdown('<div class="brief-card">', unsafe_allow_html=True)
+with c1, st.container(key="card_launch"):
     st.markdown('<div class="kicker">Next SpaceX launch</div>', unsafe_allow_html=True)
     if launch_data.get("ok") and launch_data.get("launches"):
         L = launch_data["launches"][0]
         st.subheader(L.get("name") or "Upcoming mission")
-        st.write(f"**{countdown((L.get('net') or {}).get('unix'))}**")
+        st.markdown(
+            f"<div class='countdown'>{countdown((L.get('net') or {}).get('unix'))}</div>",
+            unsafe_allow_html=True,
+        )
         st.markdown(
             f"<p class='muted'>{(L.get('net') or {}).get('los_angeles') or 'Time TBD'}<br>"
             f"{L.get('rocket') or ''} · {L.get('pad') or ''}<br>"
@@ -102,10 +143,8 @@ with c1:
         )
     else:
         st.write(launch_data.get("error") or "Launch data unavailable.")
-    st.markdown("</div>", unsafe_allow_html=True)
 
-with c2:
-    st.markdown('<div class="brief-card">', unsafe_allow_html=True)
+with c2, st.container(key="card_iss"):
     st.markdown('<div class="kicker">ISS over Hawthorne</div>', unsafe_allow_html=True)
     if iss_data.get("ok"):
         pos = iss_data.get("iss_now") or {}
@@ -132,10 +171,8 @@ with c2:
             st.write("No strong naked-eye passes in the near forecast for this site.")
     else:
         st.write(iss_data.get("error") or "ISS data unavailable.")
-    st.markdown("</div>", unsafe_allow_html=True)
 
-with c3:
-    st.markdown('<div class="brief-card">', unsafe_allow_html=True)
+with c3, st.container(key="card_apod"):
     st.markdown('<div class="kicker">NASA APOD</div>', unsafe_allow_html=True)
     if apod_data.get("ok"):
         st.subheader(apod_data.get("title") or "Picture of the Day")
@@ -146,7 +183,6 @@ with c3:
             st.write(apod_data["url"])
     else:
         st.write(apod_data.get("error") or "APOD unavailable.")
-    st.markdown("</div>", unsafe_allow_html=True)
 
 st.divider()
 st.subheader("Ask the intern")
@@ -155,9 +191,9 @@ st.caption("Answers about times and sky must come from live tools, not model mem
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-cols = st.columns(4)
-for i, q in enumerate(QUICK):
-    if cols[i].button(q, use_container_width=True):
+cols = st.columns(len(QUICK))
+for col, (label, q) in zip(cols, QUICK.items()):
+    if col.button(label, use_container_width=True):
         st.session_state.pending = q
 
 for msg in st.session_state.messages:
@@ -176,7 +212,7 @@ if prompt:
         st.markdown(prompt)
     with st.chat_message("assistant"):
         if not os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "").startswith("sk-your-key"):
-            text = "还差一步：在项目里的 `.env` 填入 `OPENAI_API_KEY`，然后重新运行。"
+            text = "One more step: set `OPENAI_API_KEY` in the project's `.env`, then rerun."
             used = []
             st.markdown(text)
         else:
